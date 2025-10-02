@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Auth0 SPA Demo</title>
-  <!-- Tailwind (CDN) for quick styling -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Auth0 SPA SDK -->
   <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js" defer></script>
@@ -24,17 +23,14 @@
     <section class="my-4">
       <div class="rounded-2xl border bg-white p-4">
         <h2 class="text-lg font-semibold mb-2">Setup</h2>
-        <p class="text-sm text-gray-600 mb-2">Edit the <code>config</code> below with your Auth0 values. This file can be hosted statically (e.g., GitHub Pages). No backend required.</p>
-        <pre class="text-xs bg-gray-100 rounded p-3 overflow-x-auto"><code>// Replace these placeholders
-const config = {
-  domain: "dev-zuk2nsc6i50ge88q.us.auth0.com", // e.g. dev-abc123.us.auth0.com
-  clientId: "0syw9ZHWPkYIcpHDkgtmB02eMmVLvUN8",
-  audience: "", // optional; set if you need an API access token
-  redirectUri: window.location.origin + window.location.pathname.replace(/\/?index\.html?$/, ''), // must be on Allowed Callback URLs
-  cacheLocation: "memory", // or "localstorage" (for legacy flows)
-  useRefreshTokens: true // set to true if enabled in Auth0 App settings (Refresh Token Rotation)
-};</code></pre>
-        <p class="text-sm text-gray-600">In your Auth0 Application (SPA): add <code>window.location.origin</code> to Allowed Web Origins and <code>window.location.origin + '/'</code> to Allowed Callback/Logout URLs.</p>
+        <p class="text-sm text-gray-600 mb-2">
+          This page uses your Auth0 tenant. Make sure these URIs are in your Auth0 app:
+        </p>
+        <ul class="text-sm text-gray-600 list-disc ml-6">
+          <li>Allowed Callback URLs: <code>https://calademos.github.io/Auth0_SPA_DEMO/</code></li>
+          <li>Allowed Logout URLs: <code>https://calademos.github.io/Auth0_SPA_DEMO/</code></li>
+          <li>Allowed Web Origins: <code>https://calademos.github.io</code></li>
+        </ul>
       </div>
     </section>
 
@@ -67,7 +63,7 @@ const config = {
 
     <section class="rounded-2xl border bg-white p-4 mt-4">
       <h2 class="text-lg font-semibold mb-2">Call Protected API (optional)</h2>
-      <p class="text-sm text-gray-600 mb-2">Enter a protected endpoint and use the Access Token above. This is just a test helper.</p>
+      <p class="text-sm text-gray-600 mb-2">Enter a protected endpoint and use the Access Token above.</p>
       <div class="flex flex-col md:flex-row gap-2 mb-2">
         <input id="api-url" class="flex-1 px-2 py-1 border rounded" placeholder="https://api.example.com/secure" />
         <button id="btn-call-api" class="px-3 py-2 rounded-xl border hover:shadow">Call API</button>
@@ -81,17 +77,18 @@ const config = {
   </footer>
 
   <script>
-    // ========= 1) CONFIGURE YOUR AUTH0 APP HERE =========
+    // ===== 1) CONFIG (single source of truth) =====
     const config = {
       domain: "dev-zuk2nsc6i50ge88q.us.auth0.com",
       clientId: "0syw9ZHWPkYIcpHDkgtmB02eMmVLvUN8",
-      audience: "", // optional
-      redirectUri: window.location.origin + "/",
+      audience: "", // set to your API identifier if you will call an API
+      // Keep the GitHub Pages project subpath:
+      redirectUri: window.location.origin + window.location.pathname.replace(/\/?index\.html?$/, ''),
       cacheLocation: "memory",
       useRefreshTokens: true
     };
 
-    // ========= 2) APP STATE =========
+    // ===== 2) APP STATE =====
     let auth0Client = null;
 
     const els = {
@@ -108,11 +105,10 @@ const config = {
       userSub: document.getElementById('user-sub')
     };
 
-    // ========= 3) HELPERS =========
+    // ===== 3) HELPERS =====
     const pretty = (obj) => JSON.stringify(obj, null, 2);
-
-    function show(el) { el.classList.remove('hidden'); }
-    function hide(el) { el.classList.add('hidden'); }
+    const show = (el) => el.classList.remove('hidden');
+    const hide = (el) => el.classList.add('hidden');
 
     async function renderUI() {
       const isAuthenticated = await auth0Client.isAuthenticated();
@@ -123,14 +119,13 @@ const config = {
         const user = await auth0Client.getUser();
         els.userSub.textContent = user?.sub || '';
         els.profile.innerHTML = `<div class="flex items-center gap-3">
-            ${user?.picture ? `<img src="${user.picture}" alt="avatar" class="w-12 h-12 rounded-full"/>` : ''}
-            <div>
-              <div class="font-medium">${user?.name || ''}</div>
-              <div class="text-xs text-gray-500">${user?.email || ''}</div>
-            </div>
-          </div>`;
+          ${user?.picture ? `<img src="${user.picture}" alt="avatar" class="w-12 h-12 rounded-full"/>` : ''}
+          <div>
+            <div class="font-medium">${user?.name || ''}</div>
+            <div class="text-xs text-gray-500">${user?.email || ''}</div>
+          </div>
+        </div>`;
 
-        // ID Token (claims)
         const idClaims = await auth0Client.getIdTokenClaims();
         els.idtoken.textContent = pretty(idClaims || {});
       } else {
@@ -143,7 +138,7 @@ const config = {
       }
     }
 
-    // ========= 4) INIT =========
+    // ===== 4) INIT =====
     async function init() {
       auth0Client = await auth0.createAuth0Client({
         domain: config.domain,
@@ -159,7 +154,7 @@ const config = {
       // Handle the redirect back from Auth0
       if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
         await auth0Client.handleRedirectCallback();
-        // remove query params from the URL
+        // Clean query params but keep project path
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
@@ -171,7 +166,9 @@ const config = {
       });
 
       els.logout.addEventListener('click', async () => {
-        await auth0Client.logout({ logoutParams: { returnTo: window.location.origin } });
+        await auth0Client.logout({
+          logoutParams: { returnTo: config.redirectUri }
+        });
       });
 
       els.getToken.addEventListener('click', async () => {
@@ -186,9 +183,11 @@ const config = {
 
       els.callApi.addEventListener('click', async () => {
         const url = els.apiUrl.value.trim();
-        if (!url) { els.apiResult.textContent = 'Enter a URL'; return; }
+        if (!url) { document.getElementById('api-result').textContent = 'Enter a URL'; return; }
         try {
-          const token = await auth0Client.getTokenSilently({ authorizationParams: { audience: els.audience.value || config.audience || undefined } });
+          const token = await auth0Client.getTokenSilently({
+            authorizationParams: { audience: els.audience.value || config.audience || undefined }
+          });
           const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
           const text = await res.text();
           document.getElementById('api-result').textContent = text;
