@@ -30,7 +30,7 @@ const config = {
   domain: "dev-zuk2nsc6i50ge88q.us.auth0.com", // e.g. dev-abc123.us.auth0.com
   clientId: "0syw9ZHWPkYIcpHDkgtmB02eMmVLvUN8",
   audience: "", // optional; set if you need an API access token
-  redirectUri: window.location.origin + "/", // must be on Allowed Callback URLs
+  redirectUri: window.location.origin + window.location.pathname.replace(/\/?index\.html?$/, ''), // must be on Allowed Callback URLs
   cacheLocation: "memory", // or "localstorage" (for legacy flows)
   useRefreshTokens: true // set to true if enabled in Auth0 App settings (Refresh Token Rotation)
 };</code></pre>
@@ -83,8 +83,8 @@ const config = {
   <script>
     // ========= 1) CONFIGURE YOUR AUTH0 APP HERE =========
     const config = {
-      domain: "YOUR_TENANT.us.auth0.com",
-      clientId: "YOUR_PUBLIC_CLIENT_ID",
+      domain: "dev-zuk2nsc6i50ge88q.us.auth0.com",
+      clientId: "0syw9ZHWPkYIcpHDkgtmB02eMmVLvUN8",
       audience: "", // optional
       redirectUri: window.location.origin + "/",
       cacheLocation: "memory",
@@ -160,7 +160,7 @@ const config = {
       if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
         await auth0Client.handleRedirectCallback();
         // remove query params from the URL
-        window.history.replaceState({}, document.title, '/');
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
 
       await renderUI();
