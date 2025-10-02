@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auth0 SPA Demo</title>
+  <!-- Tailwind (CDN) for quick styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Auth0 SPA SDK -->
+  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js" defer></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <header class="border-b bg-white">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <h1 class="text-xl font-semibold">Auth0 SPA Demo</h1>
+      <div class="flex items-center gap-2">
+        <button id="btn-login" class="hidden px-3 py-2 rounded-xl border hover:shadow">Log in</button>
+        <button id="btn-logout" class="hidden px-3 py-2 rounded-xl border hover:shadow">Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto p-4">
+    <section class="my-4">
+      <div class="rounded-2xl border bg-white p-4">
+        <h2 class="text-lg font-semibold mb-2">Setup</h2>
+        <p class="text-sm text-gray-600 mb-2">Edit the <code>config</code> below with your Auth0 values. This file can be hosted statically (e.g., GitHub Pages). No backend required.</p>
+        <pre class="text-xs bg-gray-100 rounded p-3 overflow-x-auto"><code>// Replace these placeholders
+const config = {
+  domain: "YOUR_TENANT.us.auth0.com", // e.g. dev-abc123.us.auth0.com
+  clientId: "YOUR_PUBLIC_CLIENT_ID",
+  audience: "", // optional; set if you need an API access token
+  redirectUri: window.location.origin + "/", // must be on Allowed Callback URLs
+  cacheLocation: "memory", // or "localstorage" (for legacy flows)
+  useRefreshTokens: true // set to true if enabled in Auth0 App settings (Refresh Token Rotation)
+};</code></pre>
+        <p class="text-sm text-gray-600">In your Auth0 Application (SPA): add <code>window.location.origin</code> to Allowed Web Origins and <code>window.location.origin + '/'</code> to Allowed Callback/Logout URLs.</p>
+      </div>
+    </section>
+
+    <section class="grid md:grid-cols-2 gap-4">
+      <div class="rounded-2xl border bg-white p-4">
+        <h2 class="text-lg font-semibold mb-2">Status</h2>
+        <div id="status" class="text-sm text-gray-700">Initializing…</div>
+        <div class="mt-3 text-xs text-gray-500">User Sub (subject): <span id="user-sub" class="font-mono"></span></div>
+      </div>
+
+      <div class="rounded-2xl border bg-white p-4">
+        <h2 class="text-lg font-semibold mb-2">Profile</h2>
+        <div id="profile" class="text-sm text-gray-700">Not logged in.</div>
+      </div>
+
+      <div class="rounded-2xl border bg-white p-4">
+        <h2 class="text-lg font-semibold mb-2">ID Token (claims)</h2>
+        <pre id="idtoken" class="text-xs bg-gray-100 rounded p-3 overflow-x-auto">—</pre>
+      </div>
+
+      <div class="rounded-2xl border bg-white p-4">
+        <h2 class="text-lg font-semibold mb-2">Access Token</h2>
+        <div class="flex items-center gap-2 mb-2">
+          <input id="audience-input" class="w-full md:w-auto flex-1 px-2 py-1 border rounded" placeholder="API Audience (optional)" />
+          <button id="btn-get-token" class="px-3 py-2 rounded-xl border hover:shadow">Get Access Token</button>
+        </div>
+        <pre id="accesstoken" class="text-xs bg-gray-100 rounded p-3 overflow-x-auto">—</pre>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border bg-white p-4 mt-4">
+      <h2 class="text-lg font-semibold mb-2">Call Protected API (optional)</h2>
+      <p class="text-sm text-gray-600 mb-2">Enter a protected endpoint and use the Access Token above. This is just a test helper.</p>
+      <div class="flex flex-col md:flex-row gap-2 mb-2">
+        <input id="api-url" class="flex-1 px-2 py-1 border rounded" placeholder="https://api.example.com/secure" />
+        <button id="btn-call-api" class="px-3 py-2 rounded-xl border hover:shadow">Call API</button>
+      </div>
+      <pre id="api-result" class="text-xs bg-gray-100 rounded p-3 overflow-x-auto">—</pre>
+    </section>
+  </main>
+
+  <footer class="max-w-5xl mx-auto px-4 py-6 text-xs text-gray-500">
+    Built for quick demos • Vanilla JS + Auth0 SPA SDK • Host anywhere static
+  </footer>
+
+  <script>
+    // ========= 1) CONFIGURE YOUR AUTH0 APP HERE =========
+    const config = {
+      domain: "YOUR_TENANT.us.auth0.com",
+      clientId: "YOUR_PUBLIC_CLIENT_ID",
+      audience: "", // optional
+      redirectUri: window.location.origin + "/",
+      cacheLocation: "memory",
+      useRefreshTokens: true
+    };
+
+    // ========= 2) APP STATE =========
+    let auth0Client = null;
+
+    const els = {
+      login: document.getElementById('btn-login'),
+      logout: document.getElementById('btn-logout'),
+      status: document.getElementById('status'),
+      profile: document.getElementById('profile'),
+      idtoken: document.getElementById('idtoken'),
+      access: document.getElementById('accesstoken'),
+      audience: document.getElementById('audience-input'),
+      getToken: document.getElementById('btn-get-token'),
+      apiUrl: document.getElementById('api-url'),
+      callApi: document.getElementById('btn-call-api'),
+      userSub: document.getElementById('user-sub')
+    };
+
+    // ========= 3) HELPERS =========
+    const pretty = (obj) => JSON.stringify(obj, null, 2);
+
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
+
+    async function renderUI() {
+      const isAuthenticated = await auth0Client.isAuthenticated();
+      if (isAuthenticated) {
+        show(els.logout); hide(els.login);
+        els.status.textContent = 'Authenticated';
+
+        const user = await auth0Client.getUser();
+        els.userSub.textContent = user?.sub || '';
+        els.profile.innerHTML = `<div class="flex items-center gap-3">
+            ${user?.picture ? `<img src="${user.picture}" alt="avatar" class="w-12 h-12 rounded-full"/>` : ''}
+            <div>
+              <div class="font-medium">${user?.name || ''}</div>
+              <div class="text-xs text-gray-500">${user?.email || ''}</div>
+            </div>
+          </div>`;
+
+        // ID Token (claims)
+        const idClaims = await auth0Client.getIdTokenClaims();
+        els.idtoken.textContent = pretty(idClaims || {});
+      } else {
+        show(els.login); hide(els.logout);
+        els.status.textContent = 'Not authenticated';
+        els.profile.textContent = 'Not logged in.';
+        els.idtoken.textContent = '—';
+        els.access.textContent = '—';
+        els.userSub.textContent = '';
+      }
+    }
+
+    // ========= 4) INIT =========
+    async function init() {
+      auth0Client = await auth0.createAuth0Client({
+        domain: config.domain,
+        clientId: config.clientId,
+        authorizationParams: {
+          redirect_uri: config.redirectUri,
+          audience: config.audience || undefined
+        },
+        cacheLocation: config.cacheLocation,
+        useRefreshTokens: config.useRefreshTokens
+      });
+
+      // Handle the redirect back from Auth0
+      if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
+        await auth0Client.handleRedirectCallback();
+        // remove query params from the URL
+        window.history.replaceState({}, document.title, '/');
+      }
+
+      await renderUI();
+
+      // Wire up buttons
+      els.login.addEventListener('click', async () => {
+        await auth0Client.loginWithRedirect();
+      });
+
+      els.logout.addEventListener('click', async () => {
+        await auth0Client.logout({ logoutParams: { returnTo: window.location.origin } });
+      });
+
+      els.getToken.addEventListener('click', async () => {
+        try {
+          const audience = els.audience.value || (config.audience || undefined);
+          const token = await auth0Client.getTokenSilently({ authorizationParams: { audience } });
+          els.access.textContent = token || '—';
+        } catch (e) {
+          els.access.textContent = `Error: ${e.message}`;
+        }
+      });
+
+      els.callApi.addEventListener('click', async () => {
+        const url = els.apiUrl.value.trim();
+        if (!url) { els.apiResult.textContent = 'Enter a URL'; return; }
+        try {
+          const token = await auth0Client.getTokenSilently({ authorizationParams: { audience: els.audience.value || config.audience || undefined } });
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          const text = await res.text();
+          document.getElementById('api-result').textContent = text;
+        } catch (e) {
+          document.getElementById('api-result').textContent = `Error: ${e.message}`;
+        }
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
